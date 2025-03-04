@@ -65,56 +65,36 @@ class ColorDetector:
             'silver': ([0, 0, 170], [180, 20, 245])  # More distinct from white and gray
         }
 
-    def detect_color_kmeans(self, img, k=3):
-        # Convert image to RGB for better color analysis
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    def detect_color_kmeans(self, img, k=2):
+        # Convert image to HSV
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # Reshape the image for KMeans
+        kernel = np.ones((3, 3), np.uint8)
+        hsv = cv2.dilate(hsv, kernel, iterations=3)
+
+        # Convert back to RGB for KMeans
+        img_rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+        # Reshape for KMeans clustering
         pixels = img_rgb.reshape(-1, 3).astype(np.float32)
 
         # Apply KMeans to find dominant colors
-        kmeans = KMeans(n_clusters=k, random_state=42, n_init=15)
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         kmeans.fit(pixels)
 
-        # Get the dominant colors
-        colors = kmeans.cluster_centers_
+        # Get dominant colors
+        colors = kmeans.cluster_centers_.astype(np.uint8)
 
-        # Get counts of each color
-        labels = kmeans.labels_
-        counts = Counter(labels)
+        # Determine most dominant color
+        dominant_color = colors[np.argmax(np.bincount(kmeans.labels_))]
 
-        # Sort colors by count
-        center_colors = colors.astype(np.uint8)
-
-        # Get the most dominant color (excluding extreme black/white)
-        dominant_color = None
-        for color_idx in sorted(counts, key=counts.get, reverse=True):
-            rgb_color = center_colors[color_idx].astype(int)
-
-            # Skip extreme colors (too dark/light)
-            mean_value = np.mean(rgb_color)
-            if mean_value < 15 or mean_value > 240:
-                continue
-
-            # Ensure Black Isn't Misclassified Due to Blue Reflections
-            if np.mean(rgb_color) < 60 and rgb_color[2] < rgb_color[1] and rgb_color[2] < rgb_color[0]:
-                dominant_color = [0, 0, 0]  # Force black detection
-                break
-
-            dominant_color = rgb_color
-            break
-
-        # If all colors were skipped, use the most common one
-        if dominant_color is None:
-            dominant_color = center_colors[sorted(counts, key=counts.get, reverse=True)[0]]
-
-        # Convert to HSV for matching with color ranges
+        # Convert to HSV for color matching
         hsv_color = cv2.cvtColor(np.uint8([[dominant_color]]), cv2.COLOR_RGB2HSV)[0][0]
 
-        # Find best matching color name
+        # Match color
         color_name = self.match_color_hsv(hsv_color)
 
-        return color_name, tuple(map(int, dominant_color[::-1]))  # Return BGR for display
+        return color_name, tuple(map(int, dominant_color[::-1]))  # Return BGR
 
     def match_color_hsv(self, hsv_color):
         h, s, v = hsv_color
@@ -169,7 +149,7 @@ class YourAnalytics:
             bbox_results = yolo_results[0].boxes.cpu().numpy()
             arr_box, arr_cls, arr_conf = bbox_results.xyxy.astype(
                 int).tolist(), bbox_results.cls.tolist(), bbox_results.conf.tolist()
-            track_ids = yolo_results[0].boxes.id.int().cpu().tolist()
+            yolo_results[0].boxes.id.int().cpu().tolist()
         except:
             return frame
 
