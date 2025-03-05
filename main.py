@@ -51,26 +51,30 @@ class ColorDetector:
     def __init__(self):
         # Define color ranges in HSV
         self.color_dict = {
-            'black': ([0, 0, 0], [180, 60, 80]),  # Lower max V to avoid confusion
-            'white': ([0, 0, 220], [180, 60, 255]),  # Allow slightly higher saturation
-            'gray': ([0, 0, 50], [180, 40, 210]),  # Expand range for gray tones
-            'red': ([0, 70, 50], [10, 255, 255]),  # More inclusive for red shades
-            'red2': ([160, 70, 50], [180, 255, 255]),  # Adjust for wraparound
+            'black': ([0, 0, 0], [180, 50, 50]),  # Lower max V to keep it dark
+            'white': ([0, 0, 220], [180, 40, 255]),  # White should have very low saturation
+            'silver': ([0, 0, 180], [180, 30, 240]),  # Distinct from pure white, slightly darker
+            'gray': ([0, 0, 50], [180, 20, 180]),  # Separate from black & silver
+
+            'red': ([0, 70, 50], [10, 255, 255]),
+            'red2': ([160, 70, 50], [180, 255, 255]),
+
             'orange': ([10, 100, 50], [24, 255, 255]),
-            'yellow': ([15, 90, 120], [40, 255, 255]),  # Raise min S and V to prevent black misclassification
+            'yellow': ([15, 100, 120], [40, 255, 255]),  # Ensure it doesn't get mistaken for black
+
             'green': ([36, 50, 50], [85, 255, 255]),
-            'blue': ([90, 80, 80], [130, 255, 255]),
+            'blue': ([90, 70, 70], [130, 255, 255]),  # Lower min S & V so dark blues don't get ignored
             'purple': ([125, 50, 50], [155, 255, 255]),
-            'brown': ([10, 100, 20], [30, 255, 150]),
-            'silver': ([0, 0, 170], [180, 20, 245])  # More distinct from white and gray
+            'brown': ([10, 100, 20], [30, 255, 150])
         }
 
-    def detect_color_kmeans(self, img, k=2):
+    def detect_color_kmeans(self, img, k=3):
         # Convert image to HSV
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
         kernel = np.ones((3, 3), np.uint8)
-        hsv = cv2.dilate(hsv, kernel, iterations=3)
+        
+        hsv = cv2.dilate(hsv, kernel, iterations=4)
 
         # Convert back to RGB for KMeans
         img_rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
@@ -99,12 +103,21 @@ class ColorDetector:
     def match_color_hsv(self, hsv_color):
         h, s, v = hsv_color
 
-        # Ensure Black Isn't Misclassified as Blue
-        if v <= 80 and s <= 60:
+        # Ensure Black Isn't Misclassified
+        if v <= 50 and s <= 50:
             return "black"
 
-        # Prioritize Blue Detection After Black is Ruled Out
-        if 90 <= h <= 130 and s >= 80 and v >= 80:
+        # Separate White, Silver, and Grey
+        if s <= 50:  # Increased threshold to allow more variations
+            if v >= 220:
+                return "white"
+            elif v >= 170:
+                return "silver"  # Lowered threshold so it's detected more
+            elif v >= 40:
+                return "gray"  # Lowered threshold to capture darker greys
+
+        # Prevent Dark Greys from Becoming Blue
+        if 90 <= h <= 130 and s >= 70 and v >= 70:
             return "blue"
 
         # Match Other Colors
@@ -115,7 +128,7 @@ class ColorDetector:
             if lower[0] <= h <= upper[0] and lower[1] <= s <= upper[1] and lower[2] <= v <= upper[2]:
                 return color_name
 
-        return "unknown"
+        return "unknown"  # If nothing matches, return "unknown"
 
 
 ## ========================================================================================
