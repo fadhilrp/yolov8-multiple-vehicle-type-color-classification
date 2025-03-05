@@ -73,6 +73,7 @@ class ColorDetector:
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
         kernel = np.ones((3, 3), np.uint8)
+        
         hsv = cv2.dilate(hsv, kernel, iterations=4)
 
         # Convert back to RGB for KMeans
